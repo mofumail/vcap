@@ -1,0 +1,9 @@
+venv/
+dist/
+build/
+__pycache__/
+*.pyc
+*.spec
+*.dll
+*.7z
+.claude/
