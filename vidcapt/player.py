@@ -119,6 +119,32 @@ class MpvPlayer(QWidget):
             return self._mpv.pause
         return True
 
+    def get_tracks(self, track_type=None):
+        """Return list of track dicts from mpv.
+
+        Args:
+            track_type: Optional filter — 'video', 'audio', or 'sub'.
+        """
+        if not self._mpv:
+            return []
+        tracks = self._mpv.track_list
+        if track_type is not None:
+            tracks = [t for t in tracks if t.get("type") == track_type]
+        return tracks
+
+    def set_video_track(self, track_id):
+        if self._mpv:
+            self._mpv.vid = track_id
+
+    def set_audio_track(self, track_id):
+        if self._mpv:
+            self._mpv.aid = track_id
+
+    def set_subtitle_track(self, track_id):
+        """Set subtitle track. Pass 'no' to disable subtitles."""
+        if self._mpv:
+            self._mpv.sid = track_id
+
     def showEvent(self, event):
         super().showEvent(event)
         if self._mpv is None:

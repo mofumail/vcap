@@ -1,7 +1,7 @@
 import os
 
 from PySide6.QtCore import Qt, QTimer, Slot
-from PySide6.QtGui import QAction, QKeySequence, QDragEnterEvent, QDropEvent
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QStatusBar,
     QMenuBar,
+    QMenu,
     QLineEdit,
     QMessageBox,
     QSizePolicy,
@@ -36,6 +37,10 @@ class MainWindow(QMainWindow):
         self.setAcceptDrops(True)
 
         self._source_path = ""
+        self._previewing = False
+        self._video_track_menu = None
+        self._audio_track_menu = None
+        self._subtitle_track_menu = None
 
         # Components
         self._player = MpvPlayer()
@@ -191,6 +196,17 @@ class MainWindow(QMainWindow):
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
 
+        # View menu — track selection
+        view_menu = menu_bar.addMenu("&View")
+
+        self._video_track_menu = view_menu.addMenu("Video Track")
+        self._audio_track_menu = view_menu.addMenu("Audio Track")
+        self._subtitle_track_menu = view_menu.addMenu("Subtitles")
+
+        self._video_track_menu.setEnabled(False)
+        self._audio_track_menu.setEnabled(False)
+        self._subtitle_track_menu.setEnabled(False)
+
     def _build_shortcuts(self):
         """Set up keyboard shortcuts that aren't already on menu actions."""
         # These use lambda so they don't need dedicated slots
@@ -255,10 +271,16 @@ class MainWindow(QMainWindow):
         self._timeline.position = pos
         self._lbl_time.setText(f"{format_time(pos)} / {format_time(dur)}")
 
+        # Auto-pause at out-point during preview
+        if self._previewing and pos >= self._timeline.out_point:
+            self._previewing = False
+            self._player.pause()
+
         # Update play button text
         self._btn_play.setText("❚❚" if not self._player.paused else "▶")
 
     def _toggle_play(self):
+        self._previewing = False
         self._player.toggle_pause()
 
     def _jump_to(self, t: float):
@@ -293,6 +315,7 @@ class MainWindow(QMainWindow):
     def _on_file_loaded(self):
         self._btn_export.setEnabled(True)
         self._poll_timer.start()
+        self._populate_track_menus()
         self._status.showMessage(f"Loaded: {os.path.basename(self._source_path)}")
 
     @Slot(float)
@@ -312,8 +335,76 @@ class MainWindow(QMainWindow):
     @Slot()
     def _preview_selection(self):
         """Seek to in-point and play to out-point."""
-        self._player.seek(self._timeline.in_point, "absolute")
+        self._previewing = True
+        self._player.seek(self._timeline.in_point, "absolute+exact")
         self._player.play()
+
+    # ── Track Menus ────────────────────────────────────────────────
+
+    @staticmethod
+    def _build_track_label(track):
+        """Format a human-readable label for a track dict from mpv."""
+        parts = [f"Track {track.get('id', '?')}"]
+        lang = track.get("lang")
+        if lang:
+            parts.append(f"[{lang}]")
+        title = track.get("title")
+        if title:
+            parts.append(f"- {title}")
+        codec = track.get("codec")
+        if codec:
+            parts.append(f"({codec})")
+        return " ".join(parts)
+
+    def _populate_track_menus(self):
+        self._populate_single_track_menu(
+            self._video_track_menu, "video",
+            self._player.set_video_track, allow_disable=False,
+        )
+        self._populate_single_track_menu(
+            self._audio_track_menu, "audio",
+            self._player.set_audio_track, allow_disable=False,
+        )
+        self._populate_single_track_menu(
+            self._subtitle_track_menu, "sub",
+            self._player.set_subtitle_track, allow_disable=True,
+        )
+
+    def _populate_single_track_menu(self, menu, track_type, setter, allow_disable):
+        menu.clear()
+        tracks = self._player.get_tracks(track_type)
+
+        if not tracks and not allow_disable:
+            menu.setEnabled(False)
+            return
+
+        menu.setEnabled(True)
+        group = QActionGroup(menu)
+        group.setExclusive(True)
+
+        any_selected = False
+
+        if allow_disable:
+            off_action = QAction("Off", menu)
+            off_action.setCheckable(True)
+            off_action.triggered.connect(lambda: setter("no"))
+            group.addAction(off_action)
+            menu.addAction(off_action)
+
+        for track in tracks:
+            tid = track.get("id")
+            label = self._build_track_label(track)
+            action = QAction(label, menu)
+            action.setCheckable(True)
+            action.triggered.connect(lambda checked=False, t=tid: setter(t))
+            if track.get("selected", False):
+                action.setChecked(True)
+                any_selected = True
+            group.addAction(action)
+            menu.addAction(action)
+
+        if allow_disable and not any_selected:
+            off_action.setChecked(True)
 
     # ── Export ──────────────────────────────────────────────────────
 

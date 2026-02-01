@@ -73,12 +73,14 @@ class Exporter(QObject):
 
         crf = QUALITY_PRESETS.get((fmt, quality), 23)
 
+        duration = end - start
+
         args = [
             "-y",
             "-ss", format_time(start),
-            "-to", format_time(end),
             "-accurate_seek",
             "-i", source,
+            "-t", format_time(duration),
         ]
 
         if fmt == "mp4":
