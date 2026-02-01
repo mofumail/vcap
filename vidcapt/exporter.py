@@ -6,9 +6,11 @@ from PySide6.QtCore import QObject, Signal, QProcess
 
 # Quality presets: (format, quality_name) -> crf value
 QUALITY_PRESETS = {
+    ("mp4", "Maximum"): 14,
     ("mp4", "High"): 18,
     ("mp4", "Medium"): 23,
     ("mp4", "Low"): 28,
+    ("webm", "Maximum"): 15,
     ("webm", "High"): 24,
     ("webm", "Medium"): 30,
     ("webm", "Low"): 36,

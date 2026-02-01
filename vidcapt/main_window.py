@@ -153,7 +153,7 @@ class MainWindow(QMainWindow):
 
         export_layout.addWidget(QLabel("Quality:"))
         self._combo_quality = QComboBox()
-        self._combo_quality.addItems(["High", "Medium", "Low"])
+        self._combo_quality.addItems(["Maximum", "High", "Medium", "Low"])
         export_layout.addWidget(self._combo_quality)
 
         self._btn_export = QPushButton("Export Clip...")
